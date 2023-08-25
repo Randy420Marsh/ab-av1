@@ -1,3 +1,7 @@
+git clone
+cd ab-av1
+cargo build --release
+
 # ab-av1
 AV1 video encoding tool with fast VMAF sampling & automatic encoder crf calculation. 
 Uses _ffmpeg_, _svt-av1_ & _vmaf_.
