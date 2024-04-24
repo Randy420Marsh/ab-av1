@@ -19,7 +19,7 @@ use std::{
     time::Duration,
 };
 
-const BAR_LEN: u64 = 1000;
+const BAR_LEN: u64 = 1_000_000_000;
 
 /// Interpolated binary search using sample-encode to find the best crf
 /// value delivering min-vmaf & max-encoded-percent.
@@ -146,7 +146,6 @@ pub async fn run(
         args: args.clone(),
         crf: 0.0,
         sample: sample.clone(),
-        keep: false,
         cache: *cache,
         stdout_format: sample_encode::StdoutFormat::Json,
         vmaf: vmaf.clone(),

@@ -1,4 +1,18 @@
-# Unreleased (0.7.10)
+# v0.7.14
+* Fix bash completions of some filenames.
+
+# v0.7.13
+* Use a single ffmpeg process to calculate VMAF replacing multi process piping.
+* Exclude subtitle tracks from samples.
+* Add `--keep` option for _crf-search_ & _auto-encode_.
+
+# v0.7.12
+* Improve eta stability.
+
+# v0.7.11
+* Fix sample-encode caching to consider vmaf args.
+
+# v0.7.10
 * Fix validation preventing use of svt args starting with "-i", "-b".
 
 # v0.7.9

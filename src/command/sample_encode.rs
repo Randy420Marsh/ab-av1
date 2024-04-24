@@ -3,7 +3,7 @@ mod cache;
 use crate::{
     command::{
         args::{self, PixelFormat},
-        PROGRESS_CHARS,
+        SmallDuration, PROGRESS_CHARS,
     },
     console_ext::style,
     ffmpeg::{self, FfmpegEncodeArgs},
@@ -46,10 +46,6 @@ pub struct Args {
     #[clap(flatten)]
     pub sample: args::Sample,
 
-    /// Keep temporary files after exiting.
-    #[arg(long)]
-    pub keep: bool,
-
     /// Enable sample-encode caching.
     #[arg(
         long,
@@ -87,7 +83,6 @@ pub async fn run(
         args,
         crf,
         sample: sample_args,
-        keep,
         cache,
         stdout_format,
         vmaf,
@@ -103,6 +98,7 @@ pub async fn run(
     let duration = input_probe.duration.clone()?;
     let input_fps = input_probe.fps.clone()?;
     let samples = sample_args.sample_count(duration).max(1);
+    let keep = sample_args.keep;
     let temp_dir = sample_args.temp_dir;
 
     let (samples, sample_duration, full_pass) = {
@@ -115,8 +111,8 @@ pub async fn run(
             (samples, SAMPLE_SIZE, false)
         }
     };
-    let sample_duration_s = sample_duration.as_secs();
-    bar.set_length(sample_duration_s * samples * 2);
+    let sample_duration_us = sample_duration.as_micros_u64();
+    bar.set_length(sample_duration_us * samples * 2);
 
     // Start creating copy samples async, this is IO bound & not cpu intensive
     let (tx, mut sample_tasks) = tokio::sync::mpsc::unbounded_channel();
@@ -168,11 +164,12 @@ pub async fn run(
             input_len,
             full_pass,
             &enc_args,
+            &vmaf,
         )
         .await
         {
             (Some(result), _) => {
-                bar.set_position(sample_n * sample_duration_s * 2);
+                bar.set_position(sample_n * sample_duration_us * 2);
                 bar.println(
                     style!(
                         "- Sample {sample_n} ({:.0}%) vmaf {:.2} (cache)",
@@ -197,7 +194,9 @@ pub async fn run(
                 )?;
                 while let Some(progress) = output.next().await {
                     if let FfmpegOut::Progress { time, fps, .. } = progress? {
-                        bar.set_position(time.as_secs() + sample_idx * sample_duration_s * 2);
+                        bar.set_position(
+                            time.as_micros_u64() + sample_idx * sample_duration_us * 2,
+                        );
                         if fps > 0.0 {
                             bar.set_message(format!("enc {fps} fps,"));
                         }
@@ -211,12 +210,14 @@ pub async fn run(
                 bar.set_message("vmaf running,");
                 let mut vmaf = vmaf::run(
                     &sample,
-                    args.vfilter.as_deref(),
                     &encoded_sample,
-                    &vmaf.ffmpeg_lavfi(encoded_probe.resolution),
-                    enc_args
-                        .pix_fmt
-                        .max(input_pixel_format.unwrap_or(PixelFormat::Yuv444p10le)),
+                    &vmaf.ffmpeg_lavfi(
+                        encoded_probe.resolution,
+                        enc_args
+                            .pix_fmt
+                            .max(input_pixel_format.unwrap_or(PixelFormat::Yuv444p10le)),
+                        args.vfilter.as_deref(),
+                    ),
                 )?;
                 let mut vmaf_score = -1.0;
                 while let Some(vmaf) = vmaf.next().await {
@@ -227,10 +228,10 @@ pub async fn run(
                         }
                         VmafOut::Progress(FfmpegOut::Progress { time, fps, .. }) => {
                             bar.set_position(
-                                sample_duration_s
+                                sample_duration_us
                                     // *24/fps adjusts for vmaf `-r 24`
-                                    + (time.as_secs_f64() * (24.0 / input_fps)).round() as u64
-                                    + sample_idx * sample_duration_s * 2,
+                                    + (time.as_micros_u64() as f64 * (24.0 / input_fps)).round() as u64
+                                    + sample_idx * sample_duration_us * 2,
                             );
                             if fps > 0.0 {
                                 bar.set_message(format!("vmaf {fps} fps,"));
@@ -333,7 +334,7 @@ async fn sample(
     let sample = sample::copy(&input, sample_start, sample_frames, temp_dir).await?;
     let sample_size = fs::metadata(&sample).await?.len();
     ensure!(
-        // ffmpeg copy may fail sucessfully and give us a small/empty output
+        // ffmpeg copy may fail successfully and give us a small/empty output
         sample_size > 1024,
         "ffmpeg copy failed: encoded sample too small"
     );

@@ -1,5 +1,5 @@
 //! _sample-encode_ file system caching logic.
-use crate::ffmpeg::FfmpegEncodeArgs;
+use crate::{command::args::Vmaf, ffmpeg::FfmpegEncodeArgs};
 use anyhow::Context;
 use std::{
     ffi::OsStr,
@@ -9,6 +9,7 @@ use std::{
 };
 
 /// Return a previous stored encode result for the same sample & args.
+#[allow(clippy::too_many_arguments)]
 pub async fn cached_encode(
     cache: bool,
     sample: &Path,
@@ -17,6 +18,7 @@ pub async fn cached_encode(
     input_size: u64,
     full_pass: bool,
     enc_args: &FfmpegEncodeArgs<'_>,
+    vmaf_args: &Vmaf,
 ) -> (Option<super::EncodeResult>, Option<Key>) {
     if !cache {
         return (None, None);
@@ -34,11 +36,12 @@ pub async fn cached_encode(
             full_pass,
         ),
         enc_args,
+        vmaf_args,
     );
 
     let key = Key(hash);
 
-    match tokio::task::spawn_blocking::<_, anyhow::Result<_>>(move || {
+    let cached = tokio::task::spawn_blocking::<_, anyhow::Result<_>>(move || {
         let db = open_db()?;
         Ok(match db.get(key.0.to_hex().as_bytes())? {
             Some(data) => Some(serde_json::from_slice::<super::EncodeResult>(&data)?),
@@ -47,8 +50,9 @@ pub async fn cached_encode(
     })
     .await
     .context("db.get task failed")
-    .and_then(|r| r)
-    {
+    .and_then(|r| r);
+
+    match cached {
         Ok(Some(mut result)) => {
             result.from_cache = true;
             (Some(result), Some(key))
@@ -96,11 +100,19 @@ fn open_db() -> sled::Result<sled::Db> {
 #[derive(Debug, Clone, Copy)]
 pub struct Key(blake3::Hash);
 
-fn hash_encode(input_info: impl Hash, enc_args: &FfmpegEncodeArgs<'_>) -> blake3::Hash {
+fn hash_encode(
+    input_info: impl Hash,
+    enc_args: &FfmpegEncodeArgs<'_>,
+    vmaf_args: &Vmaf,
+) -> blake3::Hash {
     let mut hasher = blake3::Hasher::new();
     let mut std_hasher = BlakeStdHasher(&mut hasher);
     input_info.hash(&mut std_hasher);
     enc_args.sample_encode_hash(&mut std_hasher);
+    if !vmaf_args.is_default() {
+        // avoid hashing if default for back compat
+        vmaf_args.hash(&mut std_hasher);
+    }
     hasher.finalize()
 }
 
