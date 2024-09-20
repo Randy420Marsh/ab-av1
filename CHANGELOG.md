@@ -1,3 +1,34 @@
+# Unreleased (v0.7.18)
+* Improve `--vfilter` docs, clarify VMAF usage.
+
+# v0.7.17
+* Improve failing ffmpeg stderr printing: 
+  - Don't allow many '\r'-ending updates to cause all other stored info to be truncated. 
+  - Increase max heap storage of output ~4k->32k to allow more complete output in some cases.
+* Fix caching unaffected by `--reference-vfilter` usage.
+* Improve `--vfilter` docs. Describe VMAF usage & mention `--reference-vfilter`.
+* Improve `--vmaf-scale` docs.
+* VMAF: Remove `-r 24` ffmpeg input.
+* VMAF: Add new default options "shortest=true", "ts_sync_mode=nearest" and use vfilter "settb=AVTB".
+
+# v0.7.16
+* Fix VMAF score parse failure of certain successful ffmpeg outputs.
+
+# v0.7.15
+* Show full ffmpeg command after errors.
+* For *_vaapi encoders map `--crf` to ffmpeg `-q` (instead of `-qp`).
+* Set av1_vaapi default `--max-crf` to 255.
+* Fix sample-encode printing output to non-terminals.
+* Omit "Encode with: ..." stderr hint for non-terminals.
+* Support logging enabled when stderr is not a terminal or by setting env var `RUST_LOG`. E.g:
+  - `RUST_LOG=ab_av1=info` "info" level logs various progress results like sample encode info
+  - `RUST_LOG=ab_av1=debug` "debug" level logs include ffmpeg calls
+* Don't panic on non-zero status exit.
+* When unable to parse a vmaf score fail faster and include ffmpeg output.
+* Add `--reference-vfilter` arg to _sample-encode_, _crf-search_, _auto-encode_ to allow
+  overriding `--vfilter` for VMAF.
+* Add `--sample-duration` arg to configure the duration of each sample. Default 20s.
+
 # v0.7.14
 * Fix bash completions of some filenames.
 
