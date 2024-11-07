@@ -1,4 +1,9 @@
-# Unreleased (v0.7.18)
+# v0.7.19
+* Fix stdin handling sometimes breaking bash shells.
+
+# v0.7.18
+* Use default .265, .264 image output extensions for libx265, libx264.
+  Fixes crf-search for images with these codecs.
 * Improve `--vfilter` docs, clarify VMAF usage.
 
 # v0.7.17
