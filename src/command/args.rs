@@ -103,3 +103,37 @@ impl Sample {
         self.extension = output.extension().and_then(|e| e.to_str().map(Into::into));
     }
 }
+
+/// Args for when VMAF/XPSNR are used to score ref vs distorted.
+#[derive(Debug, Parser, Clone, Hash)]
+pub struct ScoreArgs {
+    /// Ffmpeg video filter applied to the VMAF/XPSNR reference before analysis.
+    /// E.g. --reference-vfilter "scale=1280:-1,fps=24".
+    ///
+    /// Overrides --vfilter which would otherwise be used.
+    #[arg(long)]
+    pub reference_vfilter: Option<Arc<str>>,
+}
+
+/// Common xpsnr options.
+#[derive(Debug, Parser, Clone, Copy)]
+pub struct Xpsnr {
+    /// Frame rate override used to analyse both reference & distorted videos.
+    /// Maps to ffmpeg `-r` input arg.
+    ///
+    /// Setting to 0 disables use.
+    #[arg(long, default_value_t = 60.0)]
+    pub xpsnr_fps: f32,
+}
+
+impl Xpsnr {
+    pub fn fps(&self) -> Option<f32> {
+        Some(self.xpsnr_fps).filter(|r| *r > 0.0)
+    }
+}
+
+impl std::hash::Hash for Xpsnr {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.xpsnr_fps.to_ne_bytes().hash(state);
+    }
+}

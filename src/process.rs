@@ -207,14 +207,18 @@ impl Chunks {
     }
 
     pub fn rfind_line(&self, predicate: impl Fn(&str) -> bool) -> Option<&str> {
+        self.rfind_line_map(|line| predicate(line).then_some(line))
+    }
+
+    pub fn rfind_line_map<'a, T>(&'a self, f: impl Fn(&'a str) -> Option<T>) -> Option<T> {
         let lines = self
             .out
             .rsplit(|b| *b == b'\n')
             .flat_map(|l| l.rsplit(|b| *b == b'\r'));
         for line in lines {
             if let Ok(line) = std::str::from_utf8(line) {
-                if predicate(line) {
-                    return Some(line);
+                if let Some(out) = f(line) {
+                    return Some(out);
                 }
             }
         }
@@ -283,6 +287,9 @@ pub trait CommandExt {
     /// Adds two arguments if `condition` otherwise noop.
     fn arg2_if(&mut self, condition: bool, a: impl ArgString, b: impl ArgString) -> &mut Self;
 
+    /// Adds an argument if `condition` otherwise noop.
+    fn arg_if(&mut self, condition: bool, a: impl ArgString) -> &mut Self;
+
     /// Convert to readable shell-like string.
     fn to_cmd_str(&self) -> String;
 }
@@ -301,6 +308,13 @@ impl CommandExt for tokio::process::Command {
     fn arg2_if(&mut self, c: bool, a: impl ArgString, b: impl ArgString) -> &mut Self {
         match c {
             true => self.arg2(a, b),
+            false => self,
+        }
+    }
+
+    fn arg_if(&mut self, condition: bool, a: impl ArgString) -> &mut Self {
+        match condition {
+            true => self.arg(a.arg_string()),
             false => self,
         }
     }

@@ -1,7 +1,27 @@
-# Unreleased
+# v0.9.1
+* Fix xpsnr inf score parsing.
+* Fix xpsnr reference vfilter usage.
+* Add `--xpsnr-fps`: Frame rate override used to analyse both reference & distorted videos. Default 60.
+
+# v0.9.0
+* Add XPSNR support as a VMAF alternative.
+  - Add sample-encode `--xpsnr` arg which toggles use of XPSNR instead of VMAF.
+  - Add crf-search, auto-encode `--min-xpsnr` arg _(alternative to `--min-vmaf`)_.
+  - Add `xpsnr` command for measuring XPSNR score.
+* Support negative `--preset` args.
+* Add `--vmaf-fps`: Frame rate override used to analyse both reference & distorted videos. Default 25.
+* Omit data streams when outputting to matroska (.mkv or .webm).
+* Omit audio, subtitle & data streams in VMAF calls to work around possible ffmpeg memory leaks.
+* mpeg2video: map `--crf` to ffmpeg `-q` and set default crf range to 2-30.
+
+# v0.8.0
 * crf-search: Tweak 2nd iteration logic that slices the crf range at the 25% or 75% crf point.
   - Widen to 20%/80% to account for searches of the "middle" two subranges being more optimal.
   - Disable when using custom min/max crf ranges under half the default.
+* Add sample-encode info to crf-search & auto-encode. Show sample progress and encoding/vmaf fps.
+* Improve sample-encode progress format consistency.
+* Add crf-search `-v` flag to print per-sample results.
+* Add auto-encode `-v` flag to print per-crf results, `-vv` to also print per-sample results.
 
 # v0.7.19
 * Fix stdin handling sometimes breaking bash shells.

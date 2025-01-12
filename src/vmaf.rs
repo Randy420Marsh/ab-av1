@@ -7,12 +7,12 @@ use tokio::process::Command;
 use tokio_process_stream::{Item, ProcessChunkStream};
 use tokio_stream::{Stream, StreamExt};
 
-/// Calculate VMAF score by converting the original first to yuv.
-/// This can produce more accurate results than testing directly from original source.
+/// Calculate VMAF score using ffmpeg.
 pub fn run(
     reference: &Path,
     distorted: &Path,
     filter_complex: &str,
+    fps: Option<f32>,
 ) -> anyhow::Result<impl Stream<Item = VmafOut>> {
     info!(
         "vmaf {} vs reference {}",
@@ -21,20 +21,25 @@ pub fn run(
     );
 
     let mut cmd = Command::new("ffmpeg");
-    cmd.kill_on_drop(true)
+    cmd.arg2_opt("-r", fps)
         .arg2("-i", distorted)
+        .arg2_opt("-r", fps)
         .arg2("-i", reference)
         .arg2("-filter_complex", filter_complex)
+        // Workaround unused streams causing ffmpeg memory leaks
+        // See https://github.com/alexheretic/ab-av1/issues/189
+        .arg("-an")
+        .arg("-sn")
+        .arg("-dn")
         .arg2("-f", "null")
         .arg("-")
         .stdin(Stdio::null());
 
     let cmd_str = cmd.to_cmd_str();
     debug!("cmd `{cmd_str}`");
-    let vmaf: ProcessChunkStream = cmd.try_into().context("ffmpeg vmaf")?;
+    let mut vmaf = ProcessChunkStream::try_from(cmd).context("ffmpeg vmaf")?;
 
     Ok(async_stream::stream! {
-        let mut vmaf = vmaf;
         let mut chunks = Chunks::default();
         let mut parsed_done = false;
         while let Some(next) = vmaf.next().await {
@@ -74,14 +79,14 @@ pub enum VmafOut {
 
 impl VmafOut {
     fn try_from_chunk(chunk: &[u8], chunks: &mut Chunks) -> Option<Self> {
-        const VMAF_SCORE_PRE: &str = "VMAF score: ";
+        const SCORE_PREFIX: &str = "VMAF score: ";
 
         chunks.push(chunk);
 
-        if let Some(line) = chunks.rfind_line(|l| l.contains(VMAF_SCORE_PRE)) {
-            let idx = line.find(VMAF_SCORE_PRE).unwrap();
+        if let Some(line) = chunks.rfind_line(|l| l.contains(SCORE_PREFIX)) {
+            let idx = line.find(SCORE_PREFIX).unwrap();
             return Some(Self::Done(
-                line[idx + VMAF_SCORE_PRE.len()..].trim().parse().ok()?,
+                line[idx + SCORE_PREFIX.len()..].trim().parse().ok()?,
             ));
         }
         if let Some(progress) = FfmpegOut::try_parse(chunks.last_line()) {

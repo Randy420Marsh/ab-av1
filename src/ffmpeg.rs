@@ -132,8 +132,8 @@ pub fn encode(
     let output_ext = output.extension().and_then(|e| e.to_str());
 
     let add_faststart = output_ext == Some("mp4") && !oargs.contains("-movflags");
-    let add_cues_to_front =
-        matches!(output_ext, Some("mkv") | Some("webm")) && !oargs.contains("-cues_to_front");
+    let matroska = matches!(output_ext, Some("mkv") | Some("webm"));
+    let add_cues_to_front = matroska && !oargs.contains("-cues_to_front");
 
     let audio_codec = audio_codec.unwrap_or(if downmix_to_stereo && has_audio {
         "libopus"
@@ -163,6 +163,7 @@ pub fn encode(
         .arg2_opt("-vf", vfilter)
         .arg2("-c:s", "copy")
         .arg2("-c:a", audio_codec)
+        .arg_if(matroska, "-dn") // "Only audio, video, and subtitles are supported for Matroska"
         .arg2_if(downmix_to_stereo, "-ac", 2)
         .arg2_if(set_ba_128k, "-b:a", "128k")
         .arg2_if(add_faststart, "-movflags", "+faststart")
@@ -204,10 +205,11 @@ impl VCodecSpecific for Arc<str> {
     }
 
     fn crf_arg(&self) -> &str {
-        // // use crf-like args to support encoders that don't have crf
+        // use crf-like args to support encoders that don't have crf
         match &**self {
             // https://ffmpeg.org//ffmpeg-codecs.html#librav1e
             "librav1e" => "-qp",
+            "mpeg2video" => "-q",
             // https://ffmpeg.org//ffmpeg-codecs.html#VAAPI-encoders
             e if e.ends_with("_vaapi") => "-q",
             e if e.ends_with("_nvenc") => "-cq",
