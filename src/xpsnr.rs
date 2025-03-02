@@ -1,5 +1,5 @@
 //! xpsnr logic
-use crate::process::{cmd_err, exit_ok_stderr, Chunks, CommandExt, FfmpegOut};
+use crate::process::{Chunks, CommandExt, FfmpegOut, cmd_err, exit_ok_stderr};
 use anyhow::Context;
 use log::{debug, info};
 use std::{path::Path, process::Stdio};
@@ -13,7 +13,7 @@ pub fn run(
     distorted: &Path,
     filter_complex: &str,
     fps: Option<f32>,
-) -> anyhow::Result<impl Stream<Item = XpsnrOut>> {
+) -> anyhow::Result<impl Stream<Item = XpsnrOut> + use<>> {
     info!(
         "xpsnr {} vs reference {}",
         distorted.file_name().and_then(|n| n.to_str()).unwrap_or(""),
@@ -21,7 +21,8 @@ pub fn run(
     );
 
     let mut cmd = Command::new("ffmpeg");
-    cmd.arg2_opt("-r", fps)
+    cmd.kill_on_drop(true)
+        .arg2_opt("-r", fps)
         .arg2("-i", reference)
         .arg2_opt("-r", fps)
         .arg2("-i", distorted)
@@ -32,7 +33,9 @@ pub fn run(
 
     let cmd_str = cmd.to_cmd_str();
     debug!("cmd `{cmd_str}`");
-    let mut xpsnr = ProcessChunkStream::try_from(cmd).context("ffmpeg xpsnr")?;
+    let mut xpsnr = crate::process::child::AddOnDropChunkStream::from(
+        ProcessChunkStream::try_from(cmd).context("ffmpeg xpsnr")?,
+    );
 
     Ok(async_stream::stream! {
         let mut chunks = Chunks::default();

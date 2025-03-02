@@ -1,7 +1,7 @@
 use crate::{
     command::{
+        PROGRESS_CHARS, SmallDuration,
         args::{self, Encoder},
-        SmallDuration, PROGRESS_CHARS,
     },
     console_ext::style,
     ffmpeg,
@@ -118,6 +118,7 @@ pub async fn run(
             } => stream_sizes = Some((video, audio, subtitle, other)),
         }
     }
+    crate::process::child::add(enc.into());
     bar.finish();
 
     // successful encode, so don't delete it!
