@@ -44,7 +44,7 @@ pub struct Encode {
     #[arg(long)]
     pub vfilter: Option<String>,
 
-    /// Pixel format. svt-av1 default yuv420p10le.
+    /// Pixel format. libsvtav1, libaom-av1 & librav1e default to yuv420p10le.
     #[arg(value_enum, long)]
     pub pix_format: Option<PixelFormat>,
 
@@ -96,6 +96,9 @@ pub struct Encode {
     /// `--enc-input hwaccel=vaapi --enc-input hwaccel_output_format=vaapi`.
     ///
     /// *_vulkan encoder default: `--enc-input hwaccel=vulkan --enc-input hwaccel_output_format=vulkan`.
+    ///
+    /// Disable defaults by setting them to "none"
+    /// e.g. `-enc-input hwaccel=none --enc-input hwaccel_output_format=none`
     #[arg(long = "enc-input", allow_hyphen_values = true, value_parser = parse_enc_arg)]
     pub enc_input_args: Vec<String>,
 }
@@ -251,9 +254,9 @@ impl Encode {
             }
         }
 
-        let pix_fmt = self.pix_format.unwrap_or(match vcodec {
-            vc if vc.contains("av1") => PixelFormat::Yuv420p10le,
-            _ => PixelFormat::Yuv420p,
+        let pix_fmt = self.pix_format.or_else(|| match &**vcodec {
+            "libsvtav1" | "libaom-av1" | "librav1e" => Some(PixelFormat::Yuv420p10le),
+            _ => None,
         });
 
         let mut input_args: Vec<Arc<String>> = self
@@ -275,27 +278,48 @@ impl Encode {
             }
         }
 
+        // support setting possibly default args as "none" to omit them
+        for (name, _) in self.encoder.default_ffmpeg_input_args() {
+            if let Some(idx) = input_args
+                .windows(2)
+                .position(|w| *w[0] == *name && *w[1] == "none")
+            {
+                input_args.splice(idx..idx + 2, []);
+            }
+        }
+
         // ban usage of the bits we already set via other args & logic
-        let reserved = HashMap::from([
-            ("-c:a", " use --acodec"),
-            ("-codec:a", " use --acodec"),
-            ("-acodec", " use --acodec"),
+        let input_reserved = HashMap::from([
             ("-i", ""),
             ("-y", ""),
             ("-n", ""),
-            ("-c:v", " use --encoder"),
-            ("-c:v:0", " use --encoder"),
-            ("-codec:v", " use --encoder"),
-            ("-codec:v:0", " use --encoder"),
-            ("-vcodec", " use --encoder"),
             ("-pix_fmt", " use --pix-format"),
             ("-crf", ""),
             ("-preset", " use --preset"),
             ("-vf", " use --vfilter"),
             ("-filter:v", " use --vfilter"),
         ]);
-        for arg in args.iter().chain(input_args.iter()) {
-            if let Some(hint) = reserved.get(arg.as_str()) {
+        for arg in &input_args {
+            if let Some(hint) = input_reserved.get(arg.as_str()) {
+                anyhow::bail!("Encoder argument `{arg}` not allowed{hint}");
+            }
+        }
+        let output_reserved = {
+            let mut r = input_reserved;
+            r.extend([
+                ("-c:a", " use --acodec"),
+                ("-codec:a", " use --acodec"),
+                ("-acodec", " use --acodec"),
+                ("-c:v", " use --encoder"),
+                ("-c:v:0", " use --encoder"),
+                ("-codec:v", " use --encoder"),
+                ("-codec:v:0", " use --encoder"),
+                ("-vcodec", " use --encoder"),
+            ]);
+            r
+        };
+        for arg in &args {
+            if let Some(hint) = output_reserved.get(arg.as_str()) {
                 anyhow::bail!("Encoder argument `{arg}` not allowed{hint}");
             }
         }
@@ -474,6 +498,16 @@ pub enum PixelFormat {
     Yuv444p10le,
 }
 
+impl PixelFormat {
+    /// Returns the max quality pixel format, or None if both are None.
+    pub fn opt_max(a: Option<Self>, b: Option<Self>) -> Option<Self> {
+        match (a, b) {
+            (Some(a), Some(b)) => Some(a.max(b)),
+            (a, b) => a.or(b),
+        }
+    }
+}
+
 #[test]
 fn pixel_format_order() {
     use PixelFormat::*;
@@ -594,7 +628,7 @@ fn svtav1_to_ffmpeg_args_default_over_3m() {
     assert_eq!(vfilter, Some("scale=320:-1,fps=film"));
     assert_eq!(crf, 32.0);
     assert_eq!(preset, Some("8".into()));
-    assert_eq!(pix_fmt, PixelFormat::Yuv420p10le);
+    assert_eq!(pix_fmt, Some(PixelFormat::Yuv420p10le));
     assert!(!video_only);
 
     assert!(
@@ -657,7 +691,7 @@ fn svtav1_to_ffmpeg_args_default_under_3m() {
     assert_eq!(vfilter, None);
     assert_eq!(crf, 32.0);
     assert_eq!(preset, Some("7".into()));
-    assert_eq!(pix_fmt, PixelFormat::Yuv420p);
+    assert_eq!(pix_fmt, Some(PixelFormat::Yuv420p));
     assert!(!video_only);
 
     assert!(

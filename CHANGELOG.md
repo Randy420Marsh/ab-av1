@@ -1,3 +1,13 @@
+# v0.10.1
+* Support setting `--enc-input hwaccel=none --enc-input hwaccel_output_format=none` to omit defaults
+  for *_vaapi, *_vulkan vcodecs introduced in v0.9.4.
+
+# v0.10.0
+* `--pix-format` no longer generally defaults to "yuv420p", instead if not specified no -pix_fmt 
+  will be passed to ffmpeg allowing use of upstream defaults.
+  However, libsvtav1, libaom-av1 & librav1e will continue to default to "yuv420p10le".
+* Allow specifying ffmpeg decoder using `--enc-input c:v=CODEC`.
+
 # v0.9.4
 * Encoder *_vaapi: Default args `--enc-input hwaccel=vaapi --enc-input hwaccel_output_format=vaapi`.
 * Encoder *_vulkan: Map `--crf` to ffmpeg `-qp`.
@@ -8,7 +18,8 @@
 * Support setting per-stream audio codec, e.g. `--enc c:a:1=libopus`.
 * Support `--pix-format yuv422p10le`.
 * Write video stream metadata "AB_AV1_FFMPEG_ARGS" to encoded output, include a subset of relevant 
-  ffmpeg args used. E.g. `AB_AV1_FFMPEG_ARGS: -c:v libsvtav1 -crf 25 -preset 8`.
+  ffmpeg args used. E.g. `AB_AV1_FFMPEG_ARGS: -c:v libsvtav1 -crf 25 -preset 8`. 
+  (Not supported by mp4 files).
 
 # v0.9.2
 * Log crf results, instead of printing, if stderr is not a terminal.

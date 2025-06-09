@@ -23,7 +23,7 @@ pub struct FfmpegEncodeArgs<'a> {
     pub input: &'a Path,
     pub vcodec: Arc<str>,
     pub vfilter: Option<&'a str>,
-    pub pix_fmt: PixelFormat,
+    pub pix_fmt: Option<PixelFormat>,
     pub crf: f32,
     pub preset: Option<Arc<str>>,
     pub output_args: Vec<Arc<String>>,
@@ -93,7 +93,7 @@ pub fn encode_sample(
         .arg2("-c:v", &*vcodec)
         .args(output_args.iter().map(|a| &**a))
         .arg2(vcodec.crf_arg(), crf)
-        .arg2("-pix_fmt", pix_fmt.as_str())
+        .arg2_opt("-pix_fmt", pix_fmt.map(|v| v.as_str()))
         .arg2_opt(vcodec.preset_arg(), preset)
         .arg2_opt("-vf", vfilter)
         .arg("-an")
@@ -147,6 +147,7 @@ pub fn encode(
         true => "0:v:0",
         false => "0",
     };
+    // This doesn't seem to work on .mp4 files
     let mut metadata = format!(
         "AB_AV1_FFMPEG_ARGS=-c:v {vcodec} {} {crf}",
         vcodec.crf_arg()
@@ -163,12 +164,12 @@ pub fn encode(
         .arg2("-map", map)
         .arg2("-c:v", "copy")
         .arg2("-c:v:0", &*vcodec)
-        .arg2("-metadata:s:v:0", metadata)
+        .arg2("-metadata", metadata)
         .arg2("-c:a", audio_codec)
         .arg2("-c:s", "copy")
         .args(output_args.iter().map(|a| &**a))
         .arg2(vcodec.crf_arg(), crf)
-        .arg2("-pix_fmt", pix_fmt.as_str())
+        .arg2_opt("-pix_fmt", pix_fmt.map(|v| v.as_str()))
         .arg2_opt(vcodec.preset_arg(), preset)
         .arg2_opt("-vf", vfilter)
         .arg_if(matroska, "-dn") // "Only audio, video, and subtitles are supported for Matroska"
