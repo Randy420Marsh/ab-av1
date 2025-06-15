@@ -13,7 +13,7 @@ namespace ab_av1_gui
         public MainForm()
         {
             InitializeComponent();
-            txtEncodingCommand.Text = "auto-encode --encoder h264_nvenc --input \"{filePath}\" --preset slow --pix-format yuv420p --keyint 120 -o \"{outputFile}\"";
+            txtEncodingCommand.Text = "auto-encode --encoder h264_nvenc --input {filePath} --preset slow --pix-format yuv420p --keyint 120 -o {outputFile}";
         }
 
         private void BtnAddFiles_Click(object sender, EventArgs e)
@@ -29,8 +29,8 @@ namespace ab_av1_gui
                 {
                     foreach (string file in openFileDialog.FileNames)
                     {
-                        string quotedFile = $"\"{file}\""; // Add double quotes around file path
-                        listBoxQueue.Items.Add(quotedFile);
+                        // Store the raw file path, we'll quote it when constructing the command
+                        listBoxQueue.Items.Add(file);
                     }
                 }
             }
@@ -84,25 +84,27 @@ namespace ab_av1_gui
 
         private void EncodeFile(string filePath)
         {
-            // Remove extra quotes if already present
-            filePath = filePath.Trim('"');
+            // The filePath passed here is already the raw path from listBoxQueue.Items
+            // We need to ensure it's properly quoted for the command line.
 
-            // Ensure the file path is properly enclosed in double quotes
-            string escapedFilePath = $"\"{filePath.Trim('"')}\"";
-            string outputFile = Path.Combine(Path.GetDirectoryName(filePath), Path.GetFileNameWithoutExtension(filePath) + "_encoded.mkv");
+            string escapedFilePath = $"\"{filePath}\""; // Correctly quote the input path
+            
+            // Generate the output file path. Ensure it's correctly quoted when used in the command.
+            string outputDirectory = Path.GetDirectoryName(filePath);
+            string outputFileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+            string outputFile = Path.Combine(outputDirectory, outputFileNameWithoutExtension + "_encoded.mkv");
+            
+            string escapedOutputFile = $"\"{outputFile}\""; // Correctly quote the output path
 
-            // Ensure the output file path is also enclosed in double quotes
-            string escapedOutputFile = $"\"{outputFile}\"";
-
-            // Replace placeholders in the encoding command
-            string command = txtEncodingCommand.Text
+            // Replace placeholders in the encoding command with the properly quoted paths
+            string commandArguments = txtEncodingCommand.Text
                 .Replace("{filePath}", escapedFilePath)
                 .Replace("{outputFile}", escapedOutputFile);
 
             ProcessStartInfo psi = new ProcessStartInfo
             {
                 FileName = "ab-av1.exe",
-                Arguments = command,
+                Arguments = commandArguments, // Pass the entire command string as arguments
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
