@@ -1,4 +1,5 @@
-﻿using System.Windows.Forms;
+﻿using System;
+using System.Windows.Forms;
 
 namespace ab_av1_gui
 {
@@ -39,6 +40,13 @@ namespace ab_av1_gui
             this.BtnRemoveSelected = new System.Windows.Forms.Button();
             this.BtnStopEncoding = new System.Windows.Forms.Button();
             this.txtEncodingCommand = new System.Windows.Forms.TextBox();
+            this.chkDarkMode = new System.Windows.Forms.CheckBox();
+            this.lblMaxConcurrentEncodes = new System.Windows.Forms.Label();
+            this.numericMaxConcurrentEncodes = new System.Windows.Forms.NumericUpDown();
+            this.lblCpuCoreLimit = new System.Windows.Forms.Label();
+            this.numericCpuCoreLimit = new System.Windows.Forms.NumericUpDown();
+            ((System.ComponentModel.ISupportInitialize)(this.numericMaxConcurrentEncodes)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericCpuCoreLimit)).BeginInit();
             this.SuspendLayout();
             // 
             // BtnStartEncoding
@@ -84,7 +92,6 @@ namespace ab_av1_gui
             this.progressBar1.Location = new System.Drawing.Point(12, 148);
             this.progressBar1.Name = "progressBar1";
             this.progressBar1.Size = new System.Drawing.Size(1133, 23);
-            this.progressBar1.Style = System.Windows.Forms.ProgressBarStyle.Continuous;
             this.progressBar1.TabIndex = 4;
             // 
             // BtnAddFiles
@@ -129,11 +136,91 @@ namespace ab_av1_gui
     "yuv420p --keyint 120 -o \"{outputFile}\"";
             this.txtEncodingCommand.TextChanged += new System.EventHandler(this.txtEncodingCommand_TextChanged);
             // 
+            // chkDarkMode
+            // 
+            this.chkDarkMode.AutoSize = true;
+            this.chkDarkMode.Location = new System.Drawing.Point(12, 89);
+            this.chkDarkMode.Name = "chkDarkMode";
+            this.chkDarkMode.Size = new System.Drawing.Size(75, 17);
+            this.chkDarkMode.TabIndex = 10;
+            this.chkDarkMode.Text = "Darkmode";
+            this.chkDarkMode.UseVisualStyleBackColor = true;
+            this.chkDarkMode.CheckedChanged += new System.EventHandler(this.chkDarkMode_CheckedChanged);
+            // 
+            // lblMaxConcurrentEncodes
+            // 
+            this.lblMaxConcurrentEncodes.AutoSize = true;
+            this.lblMaxConcurrentEncodes.Location = new System.Drawing.Point(440, 90);
+            this.lblMaxConcurrentEncodes.Name = "lblMaxConcurrentEncodes";
+            this.lblMaxConcurrentEncodes.Size = new System.Drawing.Size(130, 13);
+            this.lblMaxConcurrentEncodes.TabIndex = 11;
+            this.lblMaxConcurrentEncodes.Text = "Max Concurrent Encodes:";
+            // 
+            // numericMaxConcurrentEncodes
+            // 
+            this.numericMaxConcurrentEncodes.Location = new System.Drawing.Point(581, 88);
+            this.numericMaxConcurrentEncodes.Maximum = new decimal(new int[] {
+            8,
+            0,
+            0,
+            0});
+            this.numericMaxConcurrentEncodes.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericMaxConcurrentEncodes.Name = "numericMaxConcurrentEncodes";
+            this.numericMaxConcurrentEncodes.Size = new System.Drawing.Size(50, 20);
+            this.numericMaxConcurrentEncodes.TabIndex = 12;
+            this.numericMaxConcurrentEncodes.Value = new decimal(new int[] {
+            2,
+            0,
+            0,
+            0});
+            this.numericMaxConcurrentEncodes.ValueChanged += new System.EventHandler(this.numericMaxConcurrentEncodes_ValueChanged);
+            // 
+            // lblCpuCoreLimit
+            // 
+            this.lblCpuCoreLimit.AutoSize = true;
+            this.lblCpuCoreLimit.Location = new System.Drawing.Point(650, 90);
+            this.lblCpuCoreLimit.Name = "lblCpuCoreLimit";
+            this.lblCpuCoreLimit.Size = new System.Drawing.Size(146, 13);
+            this.lblCpuCoreLimit.TabIndex = 13;
+            this.lblCpuCoreLimit.Text = "Limit Encoding to CPU Cores:";
+            // 
+            // numericCpuCoreLimit
+            // 
+            this.numericCpuCoreLimit.Location = new System.Drawing.Point(803, 88);
+            this.numericCpuCoreLimit.Maximum = new decimal(new int[] {
+            64,
+            0,
+            0,
+            0});
+            this.numericCpuCoreLimit.Minimum = new decimal(new int[] {
+            1,
+            0,
+            0,
+            0});
+            this.numericCpuCoreLimit.Name = "numericCpuCoreLimit";
+            this.numericCpuCoreLimit.Size = new System.Drawing.Size(50, 20);
+            this.numericCpuCoreLimit.TabIndex = 14;
+            this.numericCpuCoreLimit.Value = new decimal(new int[] {
+            8,
+            0,
+            0,
+            0});
+            this.numericCpuCoreLimit.ValueChanged += new System.EventHandler(this.numericCpuCoreLimit_ValueChanged);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(1157, 720);
+            this.Controls.Add(this.numericCpuCoreLimit);
+            this.Controls.Add(this.lblCpuCoreLimit);
+            this.Controls.Add(this.numericMaxConcurrentEncodes);
+            this.Controls.Add(this.lblMaxConcurrentEncodes);
+            this.Controls.Add(this.chkDarkMode);
             this.Controls.Add(this.txtEncodingCommand);
             this.Controls.Add(this.BtnStopEncoding);
             this.Controls.Add(this.BtnRemoveSelected);
@@ -146,6 +233,8 @@ namespace ab_av1_gui
             this.Name = "MainForm";
             this.Text = "MainForm";
             this.Load += new System.EventHandler(this.MainForm_Load);
+            ((System.ComponentModel.ISupportInitialize)(this.numericMaxConcurrentEncodes)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numericCpuCoreLimit)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -162,6 +251,10 @@ namespace ab_av1_gui
         private System.Windows.Forms.Button BtnRemoveSelected;
         private System.Windows.Forms.Button BtnStopEncoding;
         private System.Windows.Forms.TextBox txtEncodingCommand;
+        private CheckBox chkDarkMode;
+        private System.Windows.Forms.Label lblMaxConcurrentEncodes;
+        private System.Windows.Forms.NumericUpDown numericMaxConcurrentEncodes;
+        private System.Windows.Forms.Label lblCpuCoreLimit; // New declaration
+        private System.Windows.Forms.NumericUpDown numericCpuCoreLimit; // New declaration
     }
 }
-
