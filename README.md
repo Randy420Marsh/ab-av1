@@ -1,10 +1,8 @@
-git clone
+git clone -b vmaf_cuda https://github.com/Randy420Marsh/ab-av1.git
 
 cd ab-av1
 
 cargo build --release
-
-https://github.com/Randy420Marsh/ab-av1/tree/main/ab-av1-gui
 
 Needs the ab-av1.exe be in the same root folder, also temp files are for now generated in this location, and output files are saved in the same folder as the original with postfix _encoded.
 Also the delete original files after encoding button and stop encoding buttons do nothing atm, NEED TO DO. If the encoding feels to taking too long close the gui in taskmanager with the ffmpeg and ab-av1.exe instanced (these are all ran in parallel without max queue size set at the moment, may freeze the pc if too many files are queued)!! also try to lower preset.
