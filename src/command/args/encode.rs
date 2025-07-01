@@ -431,6 +431,9 @@ impl Encoder {
             e if e.ends_with("_vulkan") => {
                 &[("-hwaccel", "vulkan"), ("-hwaccel_output_format", "vulkan")]
             }
+            e if e.ends_with("_cuda") => {
+                &[("-hwaccel", "cuda"), ("-hwaccel_output_format", "cuda")]
+            }            
             _ => <_>::default(),
         }
     }

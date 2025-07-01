@@ -88,7 +88,7 @@ impl Vmaf {
             );
         }
         let mut lavfi = args.join(":");
-        lavfi.insert_str(0, "libvmaf=shortest=true:ts_sync_mode=nearest:");
+        lavfi.insert_str(0, "libvmaf_cuda=shortest=true:ts_sync_mode=nearest:");
 
         let mut model = VmafModel::from_args(&args);
         if let (None, Some((w, h))) = (model, distorted_res) {
@@ -234,7 +234,7 @@ fn vmaf_lavfi() {
         ),
         "[0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,scale=1280:-1,fps=24,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
     );
 }
 
@@ -244,7 +244,7 @@ fn vmaf_lavfi_default() {
     let expected = format!(
         "[0:v]setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads={}",
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads={}",
         thread::available_parallelism().map_or(1, |p| p.get())
     );
     assert_eq!(vmaf.ffmpeg_lavfi(None, None, None), expected);
@@ -256,7 +256,7 @@ fn vmaf_lavfi_default_pix_fmt() {
     let expected = format!(
         "[0:v]format=yuv420p10le,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p10le,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads={}",
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads={}",
         thread::available_parallelism().map_or(1, |p| p.get())
     );
     assert_eq!(
@@ -274,7 +274,7 @@ fn vmaf_lavfi_include_n_threads() {
     let expected = format!(
         "[0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:log_path=output.xml:n_threads={}",
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:log_path=output.xml:n_threads={}",
         thread::available_parallelism().map_or(1, |p| p.get())
     );
     assert_eq!(
@@ -294,7 +294,7 @@ fn vmaf_lavfi_small_width() {
         vmaf.ffmpeg_lavfi(Some((1280, 720)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,scale=1920:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,scale=1920:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
     );
 }
 
@@ -309,7 +309,7 @@ fn vmaf_lavfi_4k() {
         vmaf.ffmpeg_lavfi(Some((3840, 2160)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4:model=version=vmaf_4k_v0.6.1"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4:model=version=vmaf_4k_v0.6.1"
     );
 }
 
@@ -324,7 +324,7 @@ fn vmaf_lavfi_3k_upscale_to_4k() {
         vmaf.ffmpeg_lavfi(Some((3008, 1692)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,scale=3840:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,scale=3840:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads=5:model=version=vmaf_4k_v0.6.1"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads=5:model=version=vmaf_4k_v0.6.1"
     );
 }
 
@@ -343,7 +343,7 @@ fn vmaf_lavfi_small_width_custom_model() {
         vmaf.ffmpeg_lavfi(Some((1280, 720)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:model=version=foo:n_threads=5:n_subsample=4"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:model=version=foo:n_threads=5:n_subsample=4"
     );
 }
 
@@ -366,7 +366,7 @@ fn vmaf_lavfi_custom_model_and_width() {
         vmaf.ffmpeg_lavfi(Some((1280, 720)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,scale=123:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,scale=123:-1:flags=bicubic,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:model=version=foo:n_threads=5:n_subsample=4"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:model=version=foo:n_threads=5:n_subsample=4"
     );
 }
 
@@ -380,6 +380,6 @@ fn vmaf_lavfi_1080p() {
         vmaf.ffmpeg_lavfi(Some((1920, 1080)), Some(PixelFormat::Yuv420p), None),
         "[0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];\
          [1:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[ref];\
-         [dis][ref]libvmaf=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
+         [dis][ref]libvmaf_cuda=shortest=true:ts_sync_mode=nearest:n_threads=5:n_subsample=4"
     );
 }
