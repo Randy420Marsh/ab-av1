@@ -1,11 +1,11 @@
 [package]
 name = "ab-av1"
-version = "0.10.1"
-authors = ["Alex Butler <alexheretic@gmail.com>"]
+version = "0.10.1-b-cuda"
+authors = ["Alex Butler <alexheretic@gmail.com>, Randy Marsh <randy420marsh@gmail.com>"]
 edition = "2024"
-description = "AV1 encoding with fast VMAF sampling"
-repository = "https://github.com/alexheretic/ab-av1"
-keywords = ["av1", "vmaf"]
+description = "AV1 encoding with fast VMAF sampling, supports cuda accelerated vmaf"
+repository = "https://github.com/Randy420Marsh/ab-av1"
+keywords = ["av1", "vmaf", "cuda"]
 license = "MIT"
 readme = "README.md"
 

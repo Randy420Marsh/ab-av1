@@ -8,25 +8,98 @@ use tokio_process_stream::{Item, ProcessChunkStream};
 use tokio_stream::{Stream, StreamExt};
 
 /// Calculate VMAF score using ffmpeg.
+///
+/// Note: `filter_complex` is taken by value (String) so the returned stream owns it and
+/// no temporary borrows can outlive the caller.
 pub fn run(
     reference: &Path,
     distorted: &Path,
-    filter_complex: &str,
+    filter_complex: String,
     fps: Option<f32>,
-) -> anyhow::Result<impl Stream<Item = VmafOut> + use<>> {
+) -> anyhow::Result<impl Stream<Item = VmafOut> + 'static> {
     info!(
         "vmaf {} vs reference {}",
         distorted.file_name().and_then(|n| n.to_str()).unwrap_or(""),
         reference.file_name().and_then(|n| n.to_str()).unwrap_or(""),
     );
 
+    // Detect libvmaf_cuda support by running `ffmpeg -hide_banner -filters` synchronously.
+    // If detection fails, we fall back to libvmaf (CPU).
+    let mut use_cuda = false;
+    match std::process::Command::new("ffmpeg")
+        .arg("-hide_banner")
+        .arg("-filters")
+        .output()
+    {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            if stdout.contains("libvmaf_cuda") || stderr.contains("libvmaf_cuda") {
+                use_cuda = true;
+            }
+        }
+        Err(e) => {
+            info!("Could not execute ffmpeg to probe filters: {e}. Falling back to libvmaf.");
+        }
+    }
+
+    let vmaf_filter = if use_cuda { "libvmaf_cuda" } else { "libvmaf" };
+    info!("VMAF filter selected: {}", vmaf_filter);
+
+    // Adjust filter_complex by replacing literal "libvmaf" with selected filter.
+    // If using CUDA, we must handle the fact that decoded frames will be in GPU (cuda) memory.
+    // Many lavfi filters (format, scale, setpts, etc.) operate on CPU frames. To handle this:
+    //  - hwdownload the CUDA frames to system memory
+    //  - run the CPU filters (format, setpts, scalers, etc.)
+    //  - hwupload back to CUDA before calling libvmaf_cuda
+    //
+    // We apply a pragmatic string transformation on expected lavfi produced by
+    // vmaf.ffmpeg_lavfi(), which follows:
+    //   [0:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[dis];
+    //   [1:v]format=yuv420p,setpts=PTS-STARTPTS,settb=AVTB[ref];
+    //   [dis][ref]libvmaf=...
+    //
+    // The transformation applied when use_cuda == true:
+    //   - replace `format=yuv420p` -> `hwdownload,format=nv12,format=yuv420p`
+    //   - append `,hwupload_cuda` before the named stream labels `[dis]` and `[ref]`
+    //
+    // Resulting per-stream snippet:
+    //   [0:v]hwdownload,format=nv12,format=yuv420p,setpts=... ,settb=AVTB,hwupload_cuda[dis];
+    //
+    // This keeps intermediate CPU filters working and ensures libvmaf_cuda receives CUDA frames.
+    let mut adjusted_filter_complex = filter_complex.replace("libvmaf", vmaf_filter);
+
+    if use_cuda {
+        // Insert hwdownload before CPU format and ensure we re-upload to CUDA before libvmaf_cuda.
+        // Note: string replacement is pragmatic — it assumes vmaf.ffmpeg_lavfi emits the pattern above.
+        adjusted_filter_complex = adjusted_filter_complex
+            .replace("format=yuv420p", "hwdownload,format=nv12,format=yuv420p");
+        adjusted_filter_complex = adjusted_filter_complex
+            .replace("[dis];", ",hwupload_cuda[dis];")
+            .replace("[ref];", ",hwupload_cuda[ref];");
+    }
+
+    // Build ffmpeg command and make sure hwaccel flags are placed immediately before each `-i`
     let mut cmd = Command::new("ffmpeg");
     cmd.kill_on_drop(true)
-        .arg2_opt("-r", fps)
-        .arg2("-i", distorted)
-        .arg2_opt("-r", fps)
-        .arg2("-i", reference)
-        .arg2("-filter_complex", filter_complex)
+        .arg2_opt("-r", fps);
+
+    if use_cuda {
+        // Distorted input: hwaccel flags then -i distorted
+        cmd.arg("-hwaccel").arg("cuda")
+            .arg("-hwaccel_output_format").arg("cuda")
+            .arg2("-i", distorted);
+        // Reference input: hwaccel flags then -i reference
+        cmd.arg("-hwaccel").arg("cuda")
+            .arg("-hwaccel_output_format").arg("cuda")
+            .arg2("-i", reference);
+    } else {
+        // CPU path: normal inputs
+        cmd.arg2("-i", distorted)
+            .arg2("-i", reference);
+    }
+
+    cmd.arg2("-filter_complex", adjusted_filter_complex.as_str())
         // Workaround unused streams causing ffmpeg memory leaks
         // See https://github.com/alexheretic/ab-av1/issues/189
         .arg("-an")
@@ -38,10 +111,13 @@ pub fn run(
 
     let cmd_str = cmd.to_cmd_str();
     debug!("cmd `{cmd_str}`");
-    let mut vmaf = crate::process::child::AddOnDropChunkStream::from(
-        ProcessChunkStream::try_from(cmd).context("ffmpeg vmaf")?,
-    );
 
+    // Create the child/process stream now; it is owned and will be moved into the returned stream.
+    let child_stream =
+        ProcessChunkStream::try_from(cmd).context("ffmpeg vmaf")?;
+    let mut vmaf = crate::process::child::AddOnDropChunkStream::from(child_stream);
+
+    // Return an owned stream that captures owned `vmaf` and other locals.
     Ok(async_stream::stream! {
         let mut chunks = Chunks::default();
         let mut parsed_done = false;
@@ -133,12 +209,6 @@ Input #0, mov,mp4,m4a,3gp,3g2,mj2, from 'C:\Users\Administrator\Personal_scripts
     title           : Project 1
     date            : 2019-07-11
     encoder         : Lavf61.1.100
-  Duration: 00:00:20.00, start: 0.000000, bitrate: 1562 kb/s
-  Stream #0:0[0x1](und): Video: av1 (libdav1d) (Main) (av01 / 0x31307661), yuv420p10le(tv, progressive), 1000x696, 1560 kb/s, SAR 1:1 DAR 125:87, 30 fps, 30 tbr, 15360 tbn (default)
-      Metadata:
-        handler_name    : VideoHandler
-        vendor_id       : [0][0][0][0]
-        encoder         : Lavc61.3.100 libsvtav1
 Input #1, matroska,webm, from 'C:\Users\Administrator\Personal_scripts\Python\PythonScripts\PythonScripts\src\.ab-av1-RM46M2PZOVjb\A11 崩三 黑曼巴之影_1.sample2+600f.mkv':
   Metadata:
     title           : Project 1
@@ -176,13 +246,14 @@ frame=  209 fps=101 q=-0.0 size=N/A time=00:00:08.66 bitrate=N/A speed= 4.2x
 frame=  264 fps=102 q=-0.0 size=N/A time=00:00:10.95 bitrate=N/A speed=4.23x    
 frame=  319 fps=103 q=-0.0 size=N/A time=00:00:13.25 bitrate=N/A speed=4.26x    
 frame=  373 fps=103 q=-0.0 size=N/A time=00:00:15.50 bitrate=N/A speed=4.27x    
-frame=  429 fps=103 q=-0.0 size=N/A time=00:00:17.83 bitrate=N/A speed= 4.3x    
+frame=  429 fps=103 q=-0.0 size=N/A time=00:00:17.83 bitrate=N/A speed=4.3x    
 frame=  482 fps=103 q=-0.0 size=N/A time=00:00:20.04 bitrate=N/A speed=4.29x    
 frame=  536 fps=104 q=-0.0 size=N/A time=00:00:22.29 bitrate=N/A speed=4.31x    
-frame=  589 fps=103 q=-0.0 size=N/A time=00:00:24.50 bitrate=N/A speed= 4.3x    
+frame=  589 fps=103 q=-0.0 size=N/A time=00:00:24.50 bitrate=N/A speed=4.3x    
 [Parsed_libvmaf_6 @ 000002b296bac480] VMAF score: 94.826380
 [out#0/null @ 000002b2916f8b80] video:258KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
 frame=  600 fps=102 q=-0.0 Lsize=N/A time=00:00:24.95 bitrate=N/A speed=4.24x"#;
+
 
         const CHUNK_SIZE: usize = 64;
 

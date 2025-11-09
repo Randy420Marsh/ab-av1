@@ -297,14 +297,19 @@ pub fn run(
                                 sample: sample_n,
                                 samples,
                             });
+
+                            // Build owned filter_complex and pass ownership into vmaf::run to avoid
+                            // temporary-borrow issues.
+                            let filter_complex = vmaf.ffmpeg_lavfi(
+                                encoded_probe.resolution,
+                                PixelFormat::opt_max(enc_args.pix_fmt, input_pix_fmt),
+                                score.reference_vfilter.as_deref().or(args.vfilter.as_deref()),
+                            );
+
                             let vmaf = vmaf::run(
                                 &sample,
                                 &encoded_sample,
-                                &vmaf.ffmpeg_lavfi(
-                                    encoded_probe.resolution,
-                                    PixelFormat::opt_max(enc_args.pix_fmt, input_pix_fmt),
-                                    score.reference_vfilter.as_deref().or(args.vfilter.as_deref()),
-                                ),
+                                filter_complex,
                                 vmaf.fps(),
                             )?;
                             let mut vmaf = pin!(vmaf);
@@ -648,10 +653,6 @@ impl EncodeResults for Vec<EncodeResult> {
     }
 }
 
-/// Return estimated encoded **video stream** size by applying the sample percentage
-/// change to the input file size.
-///
-/// This can over-estimate the larger the non-video proportion of the input.
 async fn estimate_encode_size_by_file_percent(
     results: &Vec<EncodeResult>,
     input: &Path,

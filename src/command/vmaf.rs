@@ -1,3 +1,4 @@
+//! vmaf command wrapper
 use crate::{
     command::{
         PROGRESS_CHARS,
@@ -13,7 +14,7 @@ use clap::Parser;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{
     path::PathBuf,
-    pin::pin,
+    pin::pin, // <- ensure the std pin! macro is imported and used below
     time::{Duration, Instant},
 };
 use tokio_stream::StreamExt;
@@ -67,20 +68,27 @@ pub async fn vmaf(
         bar.set_length(nframes);
     }
 
-    let mut vmaf = pin!(vmaf::run(
+    // Build the filter_complex string locally and pass ownership into vmaf::run
+    let filter_complex = vmaf.ffmpeg_lavfi(
+        dprobe.resolution,
+        PixelFormat::opt_max(dprobe.pixel_format(), rprobe.pixel_format()),
+        score.reference_vfilter.as_deref(),
+    );
+
+    // NOTE: vmaf::run returns a stream that is not Unpin. Pin it before using `.next().await`.
+    let vmaf_stream = vmaf::run(
         &reference,
         &distorted,
-        &vmaf.ffmpeg_lavfi(
-            dprobe.resolution,
-            PixelFormat::opt_max(dprobe.pixel_format(), rprobe.pixel_format()),
-            score.reference_vfilter.as_deref(),
-        ),
+        filter_complex,
         vmaf.fps(),
-    )?);
+    )?;
+    // Pin the returned stream so StreamExt::next (which requires Unpin) can be used.
+    let mut vmaf_stream = pin!(vmaf_stream);
+
     let mut logger = ProgressLogger::new(module_path!(), Instant::now());
     let mut vmaf_score = None;
-    while let Some(vmaf) = vmaf.next().await {
-        match vmaf {
+    while let Some(vmaf_out) = vmaf_stream.next().await {
+        match vmaf_out {
             VmafOut::Done(score) => {
                 vmaf_score = Some(score);
                 break;
