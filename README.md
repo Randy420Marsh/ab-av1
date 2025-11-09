@@ -4,8 +4,37 @@ cd ab-av1
 
 cargo build --release
 
-Needs the ab-av1.exe be in the same root folder, also temp files are for now generated in this location, and output files are saved in the same folder as the original with postfix _encoded.
-Also the delete original files after encoding button and stop encoding buttons do nothing atm, NEED TO DO. If the encoding feels to taking too long close the gui in taskmanager with the ffmpeg and ab-av1.exe instanced (these are all ran in parallel without max queue size set at the moment, may freeze the pc if too many files are queued)!! also try to lower preset.
+ ----------------------
+
+⚠️ Important Usage Notes
+
+    Executable Location: The ab-av1.exe file must be located in the same root folder as the main application executable.
+
+    Temporary and Output Files:
+
+        Temporary files are currently generated in the application's root folder.
+
+        Encoded output files are saved in the same folder as the original file, appended with the postfix _encoded.
+
+🛠️ Known Issues & To-Do List
+
+Current Non-Functional Features (To-Do)
+
+The following features are currently implemented in the GUI but do not perform any action:
+
+    Delete original files after encoding button.
+
+    Stop encoding button.
+
+Encoding Stability & Performance
+
+    Warning: System Stability: Encoding instances (ffmpeg and ab-av1.exe) are currently run in parallel without a maximum queue size. Queuing too many files may cause the PC to freeze.
+
+    Emergency Stop: If encoding seems to be taking too long, you must manually close the GUI and terminate the associated processes (ffmpeg and ab-av1.exe) via Task Manager.
+
+    Performance Tip: If encoding is too slow, try lowering the encoding preset in the settings.
+
+ ----------------------
 
 # ab-av1
 AV1 video encoding tool with fast VMAF sampling & automatic encoder crf calculation. 
