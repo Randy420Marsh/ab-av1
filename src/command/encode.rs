@@ -14,6 +14,7 @@ use clap::Parser;
 use console::style;
 use indicatif::{HumanBytes, ProgressBar, ProgressStyle};
 use log::info;
+use same_file::is_same_file;
 use std::{
     path::{Path, PathBuf},
     sync::Arc,
@@ -59,15 +60,22 @@ pub async fn run(
                 audio_codec,
                 downmix_to_stereo,
                 video_only,
+                overwrite_input,
             },
     }: Args,
     probe: Arc<Ffprobe>,
     bar: &ProgressBar,
 ) -> anyhow::Result<()> {
     let defaulting_output = output.is_none();
-    // let probe = ffprobe::probe(&args.input);
     let output =
         output.unwrap_or_else(|| default_output_name(&args.input, &args.encoder, probe.is_image));
+
+    anyhow::ensure!(
+        overwrite_input || !is_same_file(&output, &args.input).unwrap_or(false),
+        "Input and Output are specified as the same file. Not proceeding. \
+         Pass in `--overwrite-input` to allow this."
+    );
+
     // output is temporary until encoding has completed successfully
     temporary::add(&output, TempKind::NotKeepable);
 
